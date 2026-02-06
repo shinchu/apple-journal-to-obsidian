@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON_SCRIPT="$SCRIPT_DIR/import_journal.py"
-SOURCE_DIR="$SCRIPT_DIR"
+SOURCE_DIR="${1:?ソースディレクトリを指定してください（例: ~/Downloads/AppleJournalEntries）}"
 
 echo "=== Apple Journal → Obsidian インポート ==="
 echo ""

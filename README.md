@@ -21,10 +21,10 @@ python3 import_journal.py --source ~/Downloads/AppleJournalEntries
 または Shell wrapper を使用:
 
 ```bash
-./import_journal.sh
+./import_journal.sh ~/Downloads/AppleJournalEntries
 ```
 
-wrapper は dry-run → 確認 → 実行 の3ステップで進む。
+wrapper はソースディレクトリを引数で受け取り、dry-run → 確認 → 実行 の3ステップで進む。
 
 ### オプション
 
