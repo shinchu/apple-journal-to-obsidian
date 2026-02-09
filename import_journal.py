@@ -5,20 +5,56 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
+import os
 import re
 import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-# デフォルトのObsidian vaultパス
-DEFAULT_VAULT = Path.home() / "Dropbox" / "Sync" / "Private"
-
-# デイリーノートのテンプレート（1行目空行 + ## Memo）
-DAILY_TEMPLATE = "\n## Memo\n"
+# 環境変数名
+ENV_VAULT = "JOURNAL_OBSIDIAN_VAULT"
 
 # 重複検出用マーカーのパターン
 MARKER_PATTERN = re.compile(r"<!-- apple-journal: (.+?) -->")
+
+
+def load_daily_notes_config(vault_dir: Path) -> dict[str, str]:
+    """Obsidianのデイリーノート設定を読み込む。
+
+    Args:
+        vault_dir: Obsidian vaultのルートパス
+
+    Returns:
+        {"folder": str, "template": str, "format": str} （未設定のキーは含まない）
+    """
+    config_path = vault_dir / ".obsidian" / "daily-notes.json"
+    if not config_path.exists():
+        return {}
+    try:
+        return json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def load_template(vault_dir: Path, template_path: str) -> str | None:
+    """Obsidianのテンプレートファイルを読み込む。
+
+    Args:
+        vault_dir: Obsidian vaultのルートパス
+        template_path: vault相対のテンプレートパス（拡張子なしの場合あり）
+
+    Returns:
+        テンプレートの内容。見つからなければNone。
+    """
+    candidate = vault_dir / template_path
+    # Obsidianはテンプレートパスを拡張子なしで保存することがある
+    if not candidate.exists() and not candidate.suffix:
+        candidate = candidate.with_suffix(".md")
+    if candidate.exists():
+        return candidate.read_text(encoding="utf-8")
+    return None
 
 
 def parse_date(date_str: str) -> str:
@@ -116,12 +152,14 @@ def format_entry(entry: dict[str, str | None]) -> str:
 def build_daily_note(
     existing_content: str | None,
     entries: list[dict[str, str | None]],
+    template_content: str | None = None,
 ) -> tuple[str, int, int]:
     """デイリーノートの内容を構築する。
 
     Args:
         existing_content: 既存のファイル内容（なければNone）
         entries: 日付でグループ化されたエントリーのリスト
+        template_content: Obsidianのテンプレート内容（なければNone）
 
     Returns:
         (新しいファイル内容, 追加されたエントリー数, スキップされたエントリー数)
@@ -166,10 +204,11 @@ def build_daily_note(
                 + "\n"
             )
     else:
-        # テンプレートから新規作成
+        # 新規作成（テンプレートがあればベースにする）
+        prefix = template_content.rstrip() + "\n\n" if template_content else ""
         content = (
-            DAILY_TEMPLATE
-            + "\n## Apple Journal\n\n"
+            prefix
+            + "## Apple Journal\n\n"
             + new_section
             + "\n"
         )
@@ -188,11 +227,12 @@ def main() -> None:
         required=True,
         help="Apple Journalエクスポートフォルダのパス",
     )
+    default_vault = os.environ.get(ENV_VAULT)
     parser.add_argument(
         "--vault",
         type=Path,
-        default=DEFAULT_VAULT,
-        help=f"Obsidian vaultパス（デフォルト: {DEFAULT_VAULT}）",
+        default=Path(default_vault) if default_vault else None,
+        help=f"Obsidian vaultパス（環境変数 {ENV_VAULT} でも指定可）",
     )
     parser.add_argument(
         "--dry-run",
@@ -202,8 +242,31 @@ def main() -> None:
     args = parser.parse_args()
 
     source_dir: Path = args.source.expanduser()
+
+    if args.vault is None:
+        print(
+            f"エラー: Obsidian vaultパスを指定してください\n"
+            f"  --vault オプション または 環境変数 {ENV_VAULT} を設定",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     vault_dir: Path = args.vault.expanduser()
-    daily_dir = vault_dir / "Daily"
+
+    # Obsidianのデイリーノート設定を読み込む
+    daily_config = load_daily_notes_config(vault_dir)
+    daily_folder = daily_config.get("folder", "Daily")
+    daily_dir = vault_dir / daily_folder
+
+    # テンプレートを読み込む
+    template_content: str | None = None
+    template_path = daily_config.get("template")
+    if template_path:
+        template_content = load_template(vault_dir, template_path)
+        if template_content:
+            print(f"テンプレート: {template_path}")
+        else:
+            print(f"警告: テンプレート {template_path} が見つかりません", file=sys.stderr)
 
     entries_dir = source_dir / "Entries"
     if not entries_dir.is_dir():
@@ -249,7 +312,9 @@ def main() -> None:
         if daily_file.exists():
             existing_content = daily_file.read_text(encoding="utf-8")
 
-        new_content, added, skipped = build_daily_note(existing_content, entries)
+        new_content, added, skipped = build_daily_note(
+            existing_content, entries, template_content
+        )
         total_added += added
         total_skipped += skipped
 
