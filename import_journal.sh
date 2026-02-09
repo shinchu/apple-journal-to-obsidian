@@ -1,6 +1,6 @@
 #!/bin/bash
-# Apple Journal → Obsidian デイリーノート統合
-# dry-runでプレビュー → 確認 → 実行
+# Apple Journal → Obsidian daily note integration
+# Preview with dry-run → confirm → execute
 
 set -euo pipefail
 
@@ -8,20 +8,20 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON_SCRIPT="$SCRIPT_DIR/import_journal.py"
 
 usage() {
-    echo "使い方: $0 <ソースディレクトリ> [--vault <vaultパス>]"
+    echo "Usage: $0 <source-directory> [--vault <vault-path>]"
     echo ""
-    echo "環境変数 JOURNAL_OBSIDIAN_VAULT でもvaultパスを指定できます。"
+    echo "You can also set the vault path via the JOURNAL_OBSIDIAN_VAULT environment variable."
     exit 1
 }
 
-# 引数パース
+# Parse arguments
 SOURCE_DIR=""
 VAULT_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --vault)
-            VAULT_ARGS=("--vault" "${2:?--vault にパスを指定してください}")
+            VAULT_ARGS=("--vault" "${2:?--vault requires a path}")
             shift 2
             ;;
         -h|--help)
@@ -31,7 +31,7 @@ while [[ $# -gt 0 ]]; do
             if [[ -z "$SOURCE_DIR" ]]; then
                 SOURCE_DIR="$1"
             else
-                echo "エラー: 不明な引数: $1" >&2
+                echo "Error: unknown argument: $1" >&2
                 usage
             fi
             shift
@@ -40,28 +40,28 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$SOURCE_DIR" ]]; then
-    echo "エラー: ソースディレクトリを指定してください" >&2
+    echo "Error: source directory is required" >&2
     usage
 fi
 
-echo "=== Apple Journal → Obsidian インポート ==="
+echo "=== Apple Journal → Obsidian Import ==="
 echo ""
 
 # Step 1: dry-run
-echo "--- プレビュー (dry-run) ---"
+echo "--- Preview (dry-run) ---"
 python3 "$PYTHON_SCRIPT" --source "$SOURCE_DIR" "${VAULT_ARGS[@]+"${VAULT_ARGS[@]}"}" --dry-run
 echo ""
 
-# Step 2: 確認
-read -rp "実行しますか？ (y/N): " answer
+# Step 2: Confirm
+read -rp "Proceed? (y/N): " answer
 if [[ "$answer" != "y" && "$answer" != "Y" ]]; then
-    echo "キャンセルしました"
+    echo "Cancelled."
     exit 0
 fi
 
-# Step 3: 実行
+# Step 3: Execute
 echo ""
-echo "--- 実行中 ---"
+echo "--- Executing ---"
 python3 "$PYTHON_SCRIPT" --source "$SOURCE_DIR" "${VAULT_ARGS[@]+"${VAULT_ARGS[@]}"}"
 echo ""
-echo "完了！"
+echo "Done!"

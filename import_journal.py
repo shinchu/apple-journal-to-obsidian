@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apple JournalのHTMLエクスポートをObsidianのデイリーノートに統合するスクリプト。"""
+"""Integrate Apple Journal HTML exports into Obsidian daily notes."""
 
 from __future__ import annotations
 
@@ -13,21 +13,21 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-# 環境変数名
+# Environment variable name
 ENV_VAULT = "JOURNAL_OBSIDIAN_VAULT"
 
-# 重複検出用マーカーのパターン
+# Marker pattern for duplicate detection
 MARKER_PATTERN = re.compile(r"<!-- apple-journal: (.+?) -->")
 
 
 def load_daily_notes_config(vault_dir: Path) -> dict[str, str]:
-    """Obsidianのデイリーノート設定を読み込む。
+    """Load Obsidian daily notes configuration.
 
     Args:
-        vault_dir: Obsidian vaultのルートパス
+        vault_dir: Root path of the Obsidian vault.
 
     Returns:
-        {"folder": str, "template": str, "format": str} （未設定のキーは含まない）
+        {"folder": str, "template": str, "format": str} (keys not configured are omitted).
     """
     config_path = vault_dir / ".obsidian" / "daily-notes.json"
     if not config_path.exists():
@@ -39,17 +39,17 @@ def load_daily_notes_config(vault_dir: Path) -> dict[str, str]:
 
 
 def load_template(vault_dir: Path, template_path: str) -> str | None:
-    """Obsidianのテンプレートファイルを読み込む。
+    """Load an Obsidian template file.
 
     Args:
-        vault_dir: Obsidian vaultのルートパス
-        template_path: vault相対のテンプレートパス（拡張子なしの場合あり）
+        vault_dir: Root path of the Obsidian vault.
+        template_path: Vault-relative template path (may omit extension).
 
     Returns:
-        テンプレートの内容。見つからなければNone。
+        Template content, or None if not found.
     """
     candidate = vault_dir / template_path
-    # Obsidianはテンプレートパスを拡張子なしで保存することがある
+    # Obsidian may store template paths without an extension
     if not candidate.exists() and not candidate.suffix:
         candidate = candidate.with_suffix(".md")
     if candidate.exists():
@@ -58,38 +58,38 @@ def load_template(vault_dir: Path, template_path: str) -> str | None:
 
 
 def parse_date(date_str: str) -> str:
-    """英語の日付文字列をYYYY-MM-DD形式に変換する。
+    """Convert an English date string to YYYY-MM-DD format.
 
     Args:
-        date_str: "Friday, December 5, 2025" 形式の日付文字列
+        date_str: Date string like "Friday, December 5, 2025".
 
     Returns:
-        "2025-12-05" 形式の日付文字列
+        Date string in "2025-12-05" format.
     """
     dt = datetime.strptime(date_str.strip(), "%A, %B %d, %Y")
     return dt.strftime("%Y-%m-%d")
 
 
 def extract_entry(html_content: str, filename: str) -> dict[str, str | None]:
-    """HTMLファイルから日付・タイトル・本文を抽出する。
+    """Extract date, title, and body from an HTML file.
 
     Args:
-        html_content: HTMLファイルの内容
-        filename: ファイル名（重複検出用マーカーに使用）
+        html_content: Contents of the HTML file.
+        filename: Filename (used as a marker for duplicate detection).
 
     Returns:
         {"date": "YYYY-MM-DD", "title": str | None, "body": str, "filename": str}
     """
-    # pageHeaderから日付を抽出
+    # Extract date from pageHeader
     date_match = re.search(
         r'<div\s+class="pageHeader">\s*(.+?)\s*</div>', html_content
     )
     if not date_match:
-        raise ValueError(f"{filename}: pageHeaderが見つかりません")
+        raise ValueError(f"{filename}: pageHeader not found")
 
     date_str = parse_date(date_match.group(1))
 
-    # タイトルを抽出（div.title内のspan）
+    # Extract title (span inside div.title)
     title: str | None = None
     title_match = re.search(
         r"<div\s+class=['\"]title['\"]>\s*</span>\s*<span\s+class=['\"]s2['\"]>"
@@ -101,7 +101,7 @@ def extract_entry(html_content: str, filename: str) -> dict[str, str | None]:
         if title_text:
             title = title_text
 
-    # 本文段落を抽出（p.p2内のspan）
+    # Extract body paragraphs (span inside p.p2)
     body_paragraphs: list[str] = []
     for p_match in re.finditer(
         r'<p\s+class="p2">\s*<span\s+class="s[23]">(.*?)</span>\s*</p>',
@@ -114,7 +114,7 @@ def extract_entry(html_content: str, filename: str) -> dict[str, str | None]:
 
     body = "\n\n".join(body_paragraphs)
 
-    # HTMLエンティティをデコード（&amp; → & など）
+    # Decode HTML entities (e.g. &amp; → &)
     if title:
         title = html.unescape(title)
     body = html.unescape(body)
@@ -128,13 +128,13 @@ def extract_entry(html_content: str, filename: str) -> dict[str, str | None]:
 
 
 def format_entry(entry: dict[str, str | None]) -> str:
-    """エントリーをMarkdown形式にフォーマットする。
+    """Format an entry as Markdown.
 
     Args:
-        entry: extract_entryの戻り値
+        entry: Return value of extract_entry.
 
     Returns:
-        マーカー付きのMarkdown文字列
+        Markdown string with a duplicate-detection marker.
     """
     lines: list[str] = []
     lines.append(f"<!-- apple-journal: {entry['filename']} -->")
@@ -154,23 +154,23 @@ def build_daily_note(
     entries: list[dict[str, str | None]],
     template_content: str | None = None,
 ) -> tuple[str, int, int]:
-    """デイリーノートの内容を構築する。
+    """Build the content of a daily note.
 
     Args:
-        existing_content: 既存のファイル内容（なければNone）
-        entries: 日付でグループ化されたエントリーのリスト
-        template_content: Obsidianのテンプレート内容（なければNone）
+        existing_content: Existing file content (None if the file does not exist).
+        entries: List of entries grouped by date.
+        template_content: Obsidian template content (None if unavailable).
 
     Returns:
-        (新しいファイル内容, 追加されたエントリー数, スキップされたエントリー数)
+        (new file content, number of entries added, number of entries skipped)
     """
-    # 既存のマーカーを収集
+    # Collect existing markers
     existing_markers: set[str] = set()
     if existing_content:
         for m in MARKER_PATTERN.finditer(existing_content):
             existing_markers.add(m.group(1))
 
-    # 新規エントリーをフィルタリング
+    # Filter out duplicate entries
     new_entries: list[dict[str, str | None]] = []
     skipped = 0
     for entry in entries:
@@ -183,7 +183,7 @@ def build_daily_note(
         content = existing_content if existing_content else ""
         return content, 0, skipped
 
-    # Apple Journalセクションを構築
+    # Build the Apple Journal section
     formatted_entries: list[str] = []
     for entry in new_entries:
         formatted_entries.append(format_entry(entry))
@@ -191,12 +191,12 @@ def build_daily_note(
     new_section = "\n\n---\n\n".join(formatted_entries)
 
     if existing_content:
-        # 既存ファイルにApple Journalセクションがあるか確認
+        # Check if the existing file already has an Apple Journal section
         if "## Apple Journal" in existing_content:
-            # 既存セクションの末尾に追記
+            # Append to the existing section
             content = existing_content.rstrip() + "\n\n---\n\n" + new_section + "\n"
         else:
-            # Apple Journalセクションを新規追加
+            # Add a new Apple Journal section
             content = (
                 existing_content.rstrip()
                 + "\n\n## Apple Journal\n\n"
@@ -204,7 +204,7 @@ def build_daily_note(
                 + "\n"
             )
     else:
-        # 新規作成（テンプレートがあればベースにする）
+        # Create a new file (use template as base if available)
         prefix = template_content.rstrip() + "\n\n" if template_content else ""
         content = (
             prefix
@@ -217,27 +217,27 @@ def build_daily_note(
 
 
 def main() -> None:
-    """メイン処理。"""
+    """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Apple JournalのHTMLをObsidianデイリーノートに統合"
+        description="Integrate Apple Journal HTML exports into Obsidian daily notes"
     )
     parser.add_argument(
         "--source",
         type=Path,
         required=True,
-        help="Apple Journalエクスポートフォルダのパス",
+        help="Path to the Apple Journal export folder",
     )
     default_vault = os.environ.get(ENV_VAULT)
     parser.add_argument(
         "--vault",
         type=Path,
         default=Path(default_vault) if default_vault else None,
-        help=f"Obsidian vaultパス（環境変数 {ENV_VAULT} でも指定可）",
+        help=f"Obsidian vault path (can also be set via {ENV_VAULT} env var)",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="プレビューモード（書き込みなし）",
+        help="Preview mode (no files are written)",
     )
     args = parser.parse_args()
 
@@ -245,41 +245,41 @@ def main() -> None:
 
     if args.vault is None:
         print(
-            f"エラー: Obsidian vaultパスを指定してください\n"
-            f"  --vault オプション または 環境変数 {ENV_VAULT} を設定",
+            f"Error: Obsidian vault path is required.\n"
+            f"  Use the --vault option or set the {ENV_VAULT} environment variable.",
             file=sys.stderr,
         )
         sys.exit(1)
 
     vault_dir: Path = args.vault.expanduser()
 
-    # Obsidianのデイリーノート設定を読み込む
+    # Load Obsidian daily notes configuration
     daily_config = load_daily_notes_config(vault_dir)
     daily_folder = daily_config.get("folder", "Daily")
     daily_dir = vault_dir / daily_folder
 
-    # テンプレートを読み込む
+    # Load template
     template_content: str | None = None
     template_path = daily_config.get("template")
     if template_path:
         template_content = load_template(vault_dir, template_path)
         if template_content:
-            print(f"テンプレート: {template_path}")
+            print(f"Template: {template_path}")
         else:
-            print(f"警告: テンプレート {template_path} が見つかりません", file=sys.stderr)
+            print(f"Warning: template {template_path} not found", file=sys.stderr)
 
     entries_dir = source_dir / "Entries"
     if not entries_dir.is_dir():
-        print(f"エラー: {entries_dir} が見つかりません", file=sys.stderr)
+        print(f"Error: {entries_dir} not found", file=sys.stderr)
         sys.exit(1)
 
-    # HTMLファイルを列挙してパース
+    # Enumerate and parse HTML files
     html_files = sorted(entries_dir.glob("*.html"))
     if not html_files:
-        print("HTMLファイルが見つかりません", file=sys.stderr)
+        print("No HTML files found", file=sys.stderr)
         sys.exit(1)
 
-    print(f"HTMLファイル: {len(html_files)}件")
+    print(f"HTML files: {len(html_files)}")
 
     entries_by_date: dict[str, list[dict[str, str | None]]] = defaultdict(list)
     errors: list[str] = []
@@ -293,14 +293,14 @@ def main() -> None:
             errors.append(f"  {html_file.name}: {e}")
 
     if errors:
-        print(f"\nパースエラー ({len(errors)}件):")
+        print(f"\nParse errors ({len(errors)}):")
         for err in errors:
             print(err)
 
-    print(f"日付: {len(entries_by_date)}日分")
+    print(f"Dates: {len(entries_by_date)}")
     print()
 
-    # 日付ごとにデイリーノートを作成/追記
+    # Create or append to daily notes for each date
     total_added = 0
     total_skipped = 0
 
@@ -321,26 +321,26 @@ def main() -> None:
         status = ""
         if added > 0:
             if existing_content:
-                status = f"追記 (+{added})"
+                status = f"appended (+{added})"
             else:
-                status = f"新規 (+{added})"
+                status = f"created (+{added})"
         else:
-            status = f"スキップ ({skipped}件は既存)"
+            status = f"skipped ({skipped} already exist)"
 
         if skipped > 0 and added > 0:
-            status += f" (スキップ: {skipped})"
+            status += f" (skipped: {skipped})"
 
         print(f"  {date_str}.md: {status}")
 
         if args.dry_run:
-            # dry-runモードではエントリー内容をプレビュー表示
+            # In dry-run mode, preview entry contents
             for entry in entries:
-                marker = "  [既存]" if entry["filename"] in (
+                marker = "  [exists]" if entry["filename"] in (
                     set(MARKER_PATTERN.findall(existing_content))
                     if existing_content
                     else set()
-                ) else "  [新規]"
-                title_info = f" 「{entry['title']}」" if entry["title"] else ""
+                ) else "  [new]"
+                title_info = f" \"{entry['title']}\"" if entry["title"] else ""
                 body_preview = (entry["body"] or "")[:50]
                 if len(entry["body"] or "") > 50:
                     body_preview += "..."
@@ -350,9 +350,9 @@ def main() -> None:
             daily_file.write_text(new_content, encoding="utf-8")
 
     print()
-    print(f"合計: {total_added}件追加, {total_skipped}件スキップ")
+    print(f"Total: {total_added} added, {total_skipped} skipped")
     if args.dry_run:
-        print("\n（dry-runモード: 書き込みは行われていません）")
+        print("\n(dry-run mode: no files were written)")
 
 
 if __name__ == "__main__":
