@@ -112,7 +112,7 @@ Entry body text
 
 ## Limitations
 
-- Only text content is imported. Photos and other media files in `Resources/` are not processed.
+Only text content is imported. Photos and other media files in `Resources/` are not processed.
 
 ## License
 
