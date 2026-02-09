@@ -109,3 +109,11 @@ With template (template content is preserved, journal entries appended after):
 <!-- apple-journal: 2025-12-04.html -->
 Entry body text
 ```
+
+## License
+
+MIT
+
+## Acknowledgments
+
+Created using [Claude Code](https://claude.ai/claude-code).
