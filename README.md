@@ -110,6 +110,10 @@ With template (template content is preserved, journal entries appended after):
 Entry body text
 ```
 
+## Limitations
+
+- Only text content is imported. Photos and other media files in `Resources/` are not processed.
+
 ## License
 
 MIT
